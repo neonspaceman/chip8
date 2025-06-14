@@ -173,6 +173,10 @@ func (r *Runtime) VideoBuffer() VideoBufferType {
 	return r.videoBuffer.Get()
 }
 
+func (r *Runtime) Beep() bool {
+	return r.st > 0
+}
+
 func (r *Runtime) SendKey(key uint8, keyPressed bool) {
 	r.keyboard.SendKey(key, keyPressed)
 }

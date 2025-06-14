@@ -3,12 +3,14 @@ package io
 import (
 	"chip8/internal/chip8"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 type RuntimeImpl interface {
 	VideoBuffer() chip8.VideoBufferType
 	SendKey(key uint8, keyPressed bool)
+	Beep() bool
 }
 
 type IO struct {
@@ -20,9 +22,18 @@ type IO struct {
 	releasedKeys []ebiten.Key
 
 	keyboardMapping map[ebiten.Key]uint8
+
+	beep *audio.Player
 }
 
 func NewIO(r RuntimeImpl) IO {
+	audioCtx := audio.NewContext(sampleRate)
+	beep, err := audioCtx.NewPlayerF32(&SineWave{})
+
+	if err != nil {
+		panic(err)
+	}
+
 	return IO{
 		r:      r,
 		pixels: make([]byte, chip8.VideoBufferHeight*chip8.VideoBufferWidth*4),
@@ -41,6 +52,7 @@ func NewIO(r RuntimeImpl) IO {
 			ebiten.KeyA: 0x7, ebiten.KeyS: 0x8, ebiten.KeyD: 0x9, ebiten.KeyF: 0xE,
 			ebiten.KeyZ: 0xA, ebiten.KeyX: 0x0, ebiten.KeyC: 0xB, ebiten.KeyV: 0xF,
 		},
+		beep: beep,
 	}
 }
 
@@ -58,6 +70,12 @@ func (io *IO) Update() error {
 		if key, ok := io.keyboardMapping[k]; ok {
 			io.r.SendKey(key, false)
 		}
+	}
+
+	if io.r.Beep() {
+		io.beep.Play()
+	} else {
+		io.beep.Pause()
 	}
 
 	return nil
