@@ -35,6 +35,8 @@ type Runtime struct {
 	st           uint8     // Sound timer
 
 	videoBuffer VideoBuffer
+
+	keyboard Keyboard
 }
 
 func NewRuntime() *Runtime {
@@ -97,6 +99,7 @@ func NewRuntime() *Runtime {
 			&OpcodeFX55{},
 			&OpcodeFX65{},
 		},
+		keyboard: NewKeyboard(),
 	}
 
 	address := uint16(0x0)
@@ -164,6 +167,14 @@ func (r *Runtime) Run() {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (r *Runtime) VideoBuffer() VideoBufferType {
+	return r.videoBuffer.Get()
+}
+
+func (r *Runtime) SendKey(key uint8, keyPressed bool) {
+	r.keyboard.SendKey(key, keyPressed)
 }
 
 func (r *Runtime) updateDt() {

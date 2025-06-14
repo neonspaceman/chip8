@@ -11,5 +11,11 @@ func (i *OpcodeFX0A) Support(opcode uint16) bool {
 }
 
 func (i *OpcodeFX0A) Do(opcode uint16, r *Runtime) {
-	panic("LD VX, K NOT IMPLEMENTED")
+	vx := opcodeX(opcode)
+
+	key := <-r.keyboard.WaitKey()
+
+	r.v[vx] = key
+
+	r.pc.Next()
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"chip8/internal/chip8"
+	ioPkg "chip8/internal/io"
 	"flag"
 )
 
@@ -17,9 +18,8 @@ func main() {
 
 	r := chip8.NewRuntime()
 	r.LoadRom(rom)
+	go r.Run()
 
-	display := chip8.NewDisplay(r)
-	go display.Display()
-
-	r.Run()
+	io := ioPkg.NewIO(r)
+	io.Run()
 }

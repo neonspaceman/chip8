@@ -11,5 +11,11 @@ func (i *OpcodeEX9E) Support(opcode uint16) bool {
 }
 
 func (i *OpcodeEX9E) Do(opcode uint16, r *Runtime) {
-	panic("SKP NOT IMPLEMENTED")
+	vx := opcodeX(opcode)
+
+	if r.keyboard.IsPressed(r.v[vx]) {
+		r.pc.Next()
+	}
+
+	r.pc.Next()
 }
