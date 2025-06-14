@@ -9,7 +9,7 @@ import (
 	"unsafe"
 )
 
-type InstructionInterface interface {
+type InstructionImpl interface {
 	Support(opcode uint16) bool
 	Do(opcode uint16, r *Runtime)
 }
@@ -27,7 +27,7 @@ const SoundTimerSpeed = 60 // Hz (60 per sec)
 type Runtime struct {
 	stack        Stack
 	mem          Mem
-	instructions []InstructionInterface
+	instructions []InstructionImpl
 	pc           PC
 	i            uint16    // The index register I (16-bit), used to store memory addresses
 	v            [16]uint8 // 16 general purpose 8-bit registers
@@ -35,9 +35,6 @@ type Runtime struct {
 	st           uint8     // Sound timer
 
 	videoBuffer VideoBuffer
-
-	delayCounter time.Duration
-	soundCounter time.Duration
 }
 
 func NewRuntime() *Runtime {
@@ -64,7 +61,7 @@ func NewRuntime() *Runtime {
 		pc:    NewPC(MemOffset),
 		mem:   NewMem(MemSize),
 		stack: NewStack(StackSize),
-		instructions: []InstructionInterface{
+		instructions: []InstructionImpl{
 			&Opcode00E0{},
 			&Opcode00EE{},
 			&Opcode1NNN{},
@@ -141,19 +138,12 @@ func (r *Runtime) LoadRom(filepath string) {
 }
 
 func (r *Runtime) Run() {
-	runtimeTicker := time.NewTicker(time.Second / RuntimeSpeed)
+	go r.updateDt()
+	go r.updateSt()
 
-	lastTick := time.Now()
+	ticker := time.NewTicker(time.Second / RuntimeSpeed)
 
-	//for range 10 {
 	for {
-		currentTick := time.Now()
-		dt := currentTick.Sub(lastTick)
-		lastTick = currentTick
-
-		r.updateDt(dt)
-		r.updateSt(dt)
-
 		// 2 bytes, big endian
 		opcode := (uint16(r.mem.Read(r.pc.Get())) << 8) | uint16(r.mem.Read(r.pc.Get()+1))
 
@@ -171,33 +161,35 @@ func (r *Runtime) Run() {
 		}
 
 		select {
-		case <-runtimeTicker.C:
+		case <-ticker.C:
 		}
 	}
 }
 
-func (r *Runtime) updateDt(dt time.Duration) {
-	r.delayCounter += dt
+func (r *Runtime) updateDt() {
+	ticker := time.NewTicker(time.Second / DelayTimerSpeed)
 
-	if r.delayCounter > time.Second/DelayTimerSpeed {
-		if int(r.dt-1) < 0 {
-			r.dt = 0
-		} else {
-			r.dt--
+	for {
+		if r.dt > 0 {
+			r.dt = r.dt - 1
 		}
-		r.delayCounter = 0
+
+		select {
+		case <-ticker.C:
+		}
 	}
 }
 
-func (r *Runtime) updateSt(dt time.Duration) {
-	r.soundCounter += dt
+func (r *Runtime) updateSt() {
+	ticker := time.NewTicker(time.Second / SoundTimerSpeed)
 
-	if r.soundCounter > time.Second/SoundTimerSpeed {
-		if int(r.st-1) < 0 {
-			r.st = 0
-		} else {
-			r.dt--
+	for {
+		if r.st > 0 {
+			r.st = r.st - 1
 		}
-		r.soundCounter = 0
+
+		select {
+		case <-ticker.C:
+		}
 	}
 }
