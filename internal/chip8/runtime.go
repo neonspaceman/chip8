@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 	"unsafe"
@@ -12,9 +13,6 @@ import (
 type InstructionImpl interface {
 	Support(opcode uint16) bool
 	Do(opcode uint16, r *Runtime)
-}
-
-type DisplayInterface interface {
 }
 
 const MemOffset uint16 = 0x200
@@ -37,9 +35,11 @@ type Runtime struct {
 	videoBuffer VideoBuffer
 
 	keyboard Keyboard
+
+	logger *slog.Logger
 }
 
-func NewRuntime() *Runtime {
+func NewRuntime(logger *slog.Logger) *Runtime {
 	fonts := [...]uint8{
 		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 		0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -100,6 +100,7 @@ func NewRuntime() *Runtime {
 			&OpcodeFX65{},
 		},
 		keyboard: NewKeyboard(),
+		logger:   logger,
 	}
 
 	address := uint16(0x0)
@@ -113,6 +114,8 @@ func NewRuntime() *Runtime {
 }
 
 func (r *Runtime) LoadRom(filepath string) {
+	r.logger.Info("Open the rom", slog.String("path", filepath))
+
 	f, err := os.Open(filepath)
 
 	if err != nil {
@@ -138,9 +141,13 @@ func (r *Runtime) LoadRom(filepath string) {
 
 		offset += uint16(unsafe.Sizeof(opcode))
 	}
+
+	r.logger.Info("Rom is loaded")
 }
 
 func (r *Runtime) Run() {
+	r.logger.Info("Run the runtime")
+
 	go r.updateDt()
 	go r.updateSt()
 
@@ -167,6 +174,8 @@ func (r *Runtime) Run() {
 		case <-ticker.C:
 		}
 	}
+
+	r.logger.Info("The runtime is stopped")
 }
 
 func (r *Runtime) VideoBuffer() VideoBufferType {

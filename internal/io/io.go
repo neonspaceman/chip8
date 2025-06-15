@@ -5,6 +5,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"log/slog"
 )
 
 type RuntimeImpl interface {
@@ -24,9 +25,11 @@ type IO struct {
 	keyboardMapping map[ebiten.Key]uint8
 
 	beep *audio.Player
+
+	logger *slog.Logger
 }
 
-func NewIO(r RuntimeImpl) IO {
+func NewIO(r RuntimeImpl, logger *slog.Logger) IO {
 	audioCtx := audio.NewContext(sampleRate)
 	beep, err := audioCtx.NewPlayerF32(&SineWave{})
 
@@ -52,7 +55,8 @@ func NewIO(r RuntimeImpl) IO {
 			ebiten.KeyA: 0x7, ebiten.KeyS: 0x8, ebiten.KeyD: 0x9, ebiten.KeyF: 0xE,
 			ebiten.KeyZ: 0xA, ebiten.KeyX: 0x0, ebiten.KeyC: 0xB, ebiten.KeyV: 0xF,
 		},
-		beep: beep,
+		beep:   beep,
+		logger: logger,
 	}
 }
 
@@ -110,10 +114,14 @@ func (io *IO) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (io *IO) Run() {
+	io.logger.Info("Run the io")
+
 	ebiten.SetWindowSize(1024, 512)
 	ebiten.SetWindowTitle("Chip8")
 
 	if err := ebiten.RunGame(io); err != nil {
 		panic(err)
 	}
+
+	io.logger.Info("The io is stopped")
 }
