@@ -1,11 +1,13 @@
 package chip8
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -117,17 +119,18 @@ func (r *Runtime) LoadRom(filepath string) {
 	r.logger.Info("Open the rom", slog.String("path", filepath))
 
 	f, err := os.Open(filepath)
+	defer f.Close()
 
 	if err != nil {
 		panic("Failed to load rom")
 	}
 
-	var opcode uint8
+	var chunk uint8
 
 	offset := MemOffset
 
 	for {
-		err = binary.Read(f, binary.NativeEndian, &opcode)
+		err = binary.Read(f, binary.NativeEndian, &chunk)
 
 		if err == io.EOF {
 			break
@@ -137,21 +140,57 @@ func (r *Runtime) LoadRom(filepath string) {
 			panic("Failed to load rom: " + err.Error())
 		}
 
-		r.mem.Write(offset, opcode)
+		r.mem.Write(offset, chunk)
 
-		offset += uint16(unsafe.Sizeof(opcode))
+		offset += uint16(unsafe.Sizeof(chunk))
 	}
 
 	r.logger.Info("Rom is loaded")
 }
 
-func (r *Runtime) Run() {
+func (r *Runtime) Run(ctx context.Context) {
 	r.logger.Info("Run the runtime")
 
-	go r.updateDt()
-	go r.updateSt()
+	wg := sync.WaitGroup{}
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r.updateDt(ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r.updateSt(ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r.updateRuntime(ctx)
+	}()
+
+	wg.Wait()
+
+	r.logger.Info("The runtime is stopped")
+}
+
+func (r *Runtime) VideoBuffer() VideoBufferType {
+	return r.videoBuffer.Get()
+}
+
+func (r *Runtime) Beep() bool {
+	return r.st > 0
+}
+
+func (r *Runtime) SendKey(key uint8, keyPressed bool) {
+	r.keyboard.SendKey(key, keyPressed)
+}
+
+func (r *Runtime) updateRuntime(ctx context.Context) {
 	ticker := time.NewTicker(time.Second / RuntimeSpeed)
+	defer ticker.Stop()
 
 	for {
 		// 2 bytes, big endian
@@ -172,26 +211,15 @@ func (r *Runtime) Run() {
 
 		select {
 		case <-ticker.C:
+		case <-ctx.Done():
+			return
 		}
 	}
-
-	r.logger.Info("The runtime is stopped")
 }
 
-func (r *Runtime) VideoBuffer() VideoBufferType {
-	return r.videoBuffer.Get()
-}
-
-func (r *Runtime) Beep() bool {
-	return r.st > 0
-}
-
-func (r *Runtime) SendKey(key uint8, keyPressed bool) {
-	r.keyboard.SendKey(key, keyPressed)
-}
-
-func (r *Runtime) updateDt() {
+func (r *Runtime) updateDt(ctx context.Context) {
 	ticker := time.NewTicker(time.Second / DelayTimerSpeed)
+	defer ticker.Stop()
 
 	for {
 		if r.dt > 0 {
@@ -200,12 +228,15 @@ func (r *Runtime) updateDt() {
 
 		select {
 		case <-ticker.C:
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
-func (r *Runtime) updateSt() {
+func (r *Runtime) updateSt(ctx context.Context) {
 	ticker := time.NewTicker(time.Second / SoundTimerSpeed)
+	defer ticker.Stop()
 
 	for {
 		if r.st > 0 {
@@ -214,6 +245,8 @@ func (r *Runtime) updateSt() {
 
 		select {
 		case <-ticker.C:
+		case <-ctx.Done():
+			return
 		}
 	}
 }
